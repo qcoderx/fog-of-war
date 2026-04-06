@@ -1,0 +1,31 @@
+.game {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game__canvas-wrap {
+  margin-top: 52px; /* below HUD */
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 0 60px rgba(0,255,136,0.05), 0 0 120px rgba(255,107,0,0.03);
+}
+
+.game__canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.game__controls-hint {
+  position: fixed;
+  bottom: 32px;
+  right: 16px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  z-index: 10;
+}

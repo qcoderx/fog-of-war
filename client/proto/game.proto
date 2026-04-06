@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package game;
+
+option go_package = "github.com/fog-of-war/server/proto";
+
+// Auth Service
+service AuthService {
+  rpc Login(LoginRequest) returns (LoginResponse);
+}
+
+// Game Service
+service GameService {
+  rpc Connect(ConnectRequest) returns (stream GameStateUpdate);
+  rpc Move(MoveRequest) returns (MoveResponse);
+  rpc CollectLoot(CollectLootRequest) returns (CollectLootResponse);
+}
+
+// Auth Messages
+message LoginRequest {
+  string public_key = 1;
+  string signature = 2;
+  string message = 3;
+}
+
+message LoginResponse {
+  string access_token = 1;
+  string player_id = 2;
+}
+
+// Game Messages
+message ConnectRequest {
+  string game_id = 1;
+}
+
+message GameStateUpdate {
+  string game_id = 1;
+  int64 server_time = 2;
+  repeated Player players = 3;
+  repeated LootItem loot_items = 4;
+  repeated NPC npcs = 5;
+  repeated Hazard hazards = 6;
+  repeated GameEvent events = 7;
+}
+
+message MoveRequest {
+  string game_id = 1;
+  float target_x = 2;
+  float target_y = 3;
+}
+
+message MoveResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message CollectLootRequest {
+  string game_id = 1;
+  string loot_id = 2;
+}
+
+message CollectLootResponse {
+  bool success = 1;
+  string error_message = 2;
+  string new_encrypted_balance = 3;
+}
+
+// Object Schemas
+message Player {
+  string id = 1;
+  string username = 2;
+  float x = 3;
+  float y = 4;
+  int32 health = 5;
+  string status = 6;
+  int32 kills = 7;
+}
+
+message LootItem {
+  string id = 1;
+  string item_type = 2;
+  float x = 3;
+  float y = 4;
+  string status = 5;
+}
+
+message NPC {
+  string id = 1;
+  string npc_type = 2;
+  float x = 3;
+  float y = 4;
+  int32 health = 5;
+}
+
+message Hazard {
+  string id = 1;
+  string hazard_type = 2;
+  float x = 3;
+  float y = 4;
+  float radius = 5;
+  bool is_active = 6;
+}
+
+message GameEvent {
+  string event_type = 1;
+  string player_id = 2;
+  string target_id = 3;
+  string data = 4;
+}

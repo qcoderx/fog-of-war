@@ -1,0 +1,165 @@
+.results {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.results__bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(255,215,0,0.04) 0%, var(--bg) 60%);
+  animation: results-pulse 3s ease-in-out infinite;
+}
+
+@keyframes results-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.results__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  text-align: center;
+}
+
+.results__crown { font-size: 64px; animation: float 2s ease-in-out infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.results__eyebrow {
+  font-size: 11px;
+  letter-spacing: 6px;
+  font-family: 'Orbitron', sans-serif;
+  padding: 6px 20px;
+  border-radius: 2px;
+}
+
+.results__eyebrow.winner {
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  background: rgba(255,215,0,0.08);
+  box-shadow: 0 0 20px rgba(255,215,0,0.2);
+}
+
+.results__eyebrow.loser {
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  background: rgba(255,34,68,0.08);
+}
+
+.results__title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(28px, 5vw, 52px);
+  font-weight: 900;
+  letter-spacing: 2px;
+}
+
+.results__title--win {
+  color: var(--gold);
+  text-shadow: 0 0 40px rgba(255,215,0,0.6);
+}
+
+.results__title--lose { color: var(--muted); }
+
+.results__winner-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 320px;
+}
+
+.results__winner-label {
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: var(--muted);
+}
+
+.results__winner-addr {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.results__payout {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.payout__val {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 48px;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 0 30px rgba(255,215,0,0.5);
+}
+
+.payout__unit {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 20px;
+  color: var(--muted);
+}
+
+.results__payout-sub { font-size: 11px; color: var(--muted); }
+
+.results__actions {
+  display: flex;
+  gap: 16px;
+}
+
+.results__btn {
+  height: 48px;
+  padding: 0 28px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  transition: all 0.2s;
+}
+
+.results__btn--primary {
+  background: var(--accent);
+  color: #000;
+}
+.results__btn--primary:hover {
+  background: var(--accent2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(255,107,0,0.4);
+}
+
+.results__btn--secondary {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.results__btn--secondary:hover {
+  border-color: var(--muted);
+  color: var(--text);
+}
+
+.results__tx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.tx-hash { color: var(--cold); }

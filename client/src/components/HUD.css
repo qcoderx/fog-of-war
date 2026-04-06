@@ -1,0 +1,158 @@
+.hud-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: rgba(5,5,8,0.85);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+
+.hud-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hud-stat--right { flex-direction: row-reverse; }
+
+.hud-stat__label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+.hud-stat__val {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 32px;
+}
+
+.hud-stat__val--danger { color: var(--danger); animation: blink 0.5s step-end infinite; }
+.hud-stat__val--gold { color: var(--gold); }
+
+@keyframes blink { 50% { opacity: 0; } }
+
+.hud-hp-bar {
+  width: 120px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hud-hp-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease, background 0.3s;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.hud-timer {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--text);
+  letter-spacing: 4px;
+  text-shadow: 0 0 20px rgba(255,255,255,0.2);
+  transition: color 0.3s;
+}
+
+.hud-timer--critical {
+  color: var(--danger);
+  text-shadow: 0 0 20px rgba(255,34,68,0.6);
+  animation: blink 1s step-end infinite;
+}
+
+/* Blood Hunt Banner */
+.hud-blood-hunt {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(180,0,0,0.9);
+  border: 1px solid var(--danger);
+  padding: 8px 24px;
+  border-radius: 4px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #fff;
+  animation: blood-pulse 1s ease-in-out infinite;
+  white-space: nowrap;
+}
+
+@keyframes blood-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,34,68,0.6); }
+  50% { box-shadow: 0 0 0 8px rgba(255,34,68,0); }
+}
+
+.blood-hunt__icon { font-size: 14px; }
+
+/* Leaderboard */
+.hud-leaderboard {
+  position: fixed;
+  top: 72px;
+  right: 16px;
+  z-index: 10;
+  background: rgba(5,5,8,0.85);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  min-width: 180px;
+  backdrop-filter: blur(8px);
+}
+
+.hud-lb__title {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.hud-lb__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(26,26,46,0.5);
+}
+
+.hud-lb__row:last-child { border-bottom: none; }
+
+.hud-lb__row--me { color: var(--safe); }
+
+.hud-lb__rank { color: var(--muted); width: 20px; font-size: 10px; }
+.hud-lb__addr { flex: 1; color: inherit; }
+.hud-lb__val { color: var(--gold); font-family: 'Orbitron', sans-serif; font-size: 12px; }
+
+/* Wallet badge */
+.hud-wallet {
+  position: fixed;
+  bottom: 32px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--muted);
+  background: rgba(5,5,8,0.8);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 4px;
+}
