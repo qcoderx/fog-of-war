@@ -2,21 +2,13 @@ syntax = "proto3";
 
 package game;
 
-option go_package = "github.com/fog-of-war/server/proto";
+option go_package = "github.com/koded/fog-of-war/server/proto";
 
-// Auth Service
+// Authentication Service
 service AuthService {
   rpc Login(LoginRequest) returns (LoginResponse);
 }
 
-// Game Service
-service GameService {
-  rpc Connect(ConnectRequest) returns (stream GameStateUpdate);
-  rpc Move(MoveRequest) returns (MoveResponse);
-  rpc CollectLoot(CollectLootRequest) returns (CollectLootResponse);
-}
-
-// Auth Messages
 message LoginRequest {
   string public_key = 1;
   string signature = 2;
@@ -28,19 +20,18 @@ message LoginResponse {
   string player_id = 2;
 }
 
-// Game Messages
-message ConnectRequest {
-  string game_id = 1;
+// Game Service
+service GameService {
+  // Connect to a game session and receive a stream of updates
+  rpc Connect(ConnectRequest) returns (stream GameStateUpdate);
+  
+  // Send player actions
+  rpc Move(MoveRequest) returns (MoveResponse);
+  rpc CollectLoot(CollectLootRequest) returns (CollectLootResponse);
 }
 
-message GameStateUpdate {
+message ConnectRequest {
   string game_id = 1;
-  int64 server_time = 2;
-  repeated Player players = 3;
-  repeated LootItem loot_items = 4;
-  repeated NPC npcs = 5;
-  repeated Hazard hazards = 6;
-  repeated GameEvent events = 7;
 }
 
 message MoveRequest {
@@ -65,23 +56,33 @@ message CollectLootResponse {
   string new_encrypted_balance = 3;
 }
 
-// Object Schemas
+// Game State Messages
+message GameStateUpdate {
+  string game_id = 1;
+  int64 server_time = 2;
+  repeated Player players = 3;
+  repeated LootItem loot_items = 4;
+  repeated NPC npcs = 5;
+  repeated Hazard hazards = 6;
+  repeated GameEvent events = 7;
+}
+
 message Player {
   string id = 1;
   string username = 2;
   float x = 3;
   float y = 4;
   int32 health = 5;
-  string status = 6;
+  string status = 6; // alive, extracted, eliminated
   int32 kills = 7;
 }
 
 message LootItem {
   string id = 1;
   string item_type = 2;
-  float x = 3;
+  float x = 3; // Note: In production, these might be hidden or approximate for FOW
   float y = 4;
-  string status = 5;
+  string status = 5; // available, collected
 }
 
 message NPC {
@@ -105,5 +106,5 @@ message GameEvent {
   string event_type = 1;
   string player_id = 2;
   string target_id = 3;
-  string data = 4;
+  string data = 4; // JSON string for flexible event data
 }
