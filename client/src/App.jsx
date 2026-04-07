@@ -42,7 +42,7 @@ export default function App() {
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} onError={onError} autoConnect={false}>
+      <WalletProvider wallets={wallets} onError={onError} autoConnect={false} localStorageKey="fog-of-war-wallet">
         <WalletModalProvider>
           <Router />
         </WalletModalProvider>

@@ -1,76 +1,114 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useGameStore } from '../store';
+import { startGame } from '../socket';
 import './Lobby.css';
 
-const SLOTS = 8;
+function fmtDuration(s) {
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 
 export default function Lobby() {
-  const { playersInLobby, poolSize, walletAddress } = useGameStore();
-  const timerRef = useRef(null);
+  const {
+    sessionId, isHost,
+    lobbyPlayers, lobbyStatus, lobbyFee, lobbyMax, lobbyDuration,
+    myId, setScreen,
+  } = useGameStore();
 
-  // simulate lobby fill for demo (remove when backend is live)
+  // Fallback: socket.js already calls setScreen('game') when status flips,
+  // but cover any edge-case race here too.
   useEffect(() => {
-    // backend will push lobby:update events via socket
-  }, []);
+    if (lobbyStatus === 'in_progress') setScreen('game');
+  }, [lobbyStatus]);
 
-  const slots = Array.from({ length: SLOTS }, (_, i) => ({
-    filled: i < playersInLobby,
-    isMe: i === 0,
-  }));
+  const handleStart = async () => {
+    try {
+      const res = await startGame(sessionId);
+      if (!res.success) alert(res.error || 'Failed to start');
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const prize = (lobbyPlayers.length * lobbyFee * 0.9).toFixed(2);
 
   return (
     <div className="lobby">
       <div className="lobby__header">
-        <div className="lobby__eyebrow">MATCHMAKING</div>
-        <h2 className="lobby__title">WAITING FOR SOLDIERS</h2>
-        <p className="lobby__sub">Game starts when all {SLOTS} slots are filled</p>
+        <div className="lobby__eyebrow">GAME LOBBY</div>
+        <div className="lobby__session-id">
+          SESSION {sessionId?.slice(0, 8).toUpperCase()}...
+        </div>
       </div>
 
-      <div className="lobby__grid">
-        {slots.map((slot, i) => (
-          <div key={i} className={`slot ${slot.filled ? 'slot--filled' : 'slot--empty'} ${slot.isMe ? 'slot--me' : ''}`}>
-            {slot.filled ? (
-              <>
-                <div className="slot__avatar">{slot.isMe ? '★' : '◆'}</div>
-                <div className="slot__addr">
-                  {slot.isMe
-                    ? `${walletAddress?.slice(0, 4)}...${walletAddress?.slice(-4)}`
-                    : `0x${Math.random().toString(16).slice(2, 6)}...`}
-                </div>
-                {slot.isMe && <div className="slot__you">YOU</div>}
-              </>
-            ) : (
-              <>
-                <div className="slot__avatar slot__avatar--empty">?</div>
-                <div className="slot__addr muted">WAITING...</div>
-              </>
-            )}
+      <div className="lobby__card">
+        {/* Stats */}
+        <div className="lobby__stats">
+          <div className="lstat">
+            <span className="lstat__val">{lobbyPlayers.length}/{lobbyMax || '?'}</span>
+            <span className="lstat__label">PLAYERS</span>
           </div>
-        ))}
-      </div>
-
-      <div className="lobby__pool">
-        <div className="pool__label">CURRENT PRIZE POOL</div>
-        <div className="pool__value">{playersInLobby}.0 <span>SOL</span></div>
-        <div className="pool__sub">Winner takes {(playersInLobby * 0.9).toFixed(1)} SOL · House: {(playersInLobby * 0.1).toFixed(1)} SOL</div>
-      </div>
-
-      <div className="lobby__status">
-        <div className="lobby__progress">
-          <div className="lobby__progress-fill" style={{ width: `${(playersInLobby / SLOTS) * 100}%` }} />
+          <div className="lstat__divider" />
+          <div className="lstat">
+            <span className="lstat__val">{lobbyFee} SOL</span>
+            <span className="lstat__label">ENTRY FEE</span>
+          </div>
+          <div className="lstat__divider" />
+          <div className="lstat">
+            <span className="lstat__val">{fmtDuration(lobbyDuration)}</span>
+            <span className="lstat__label">DURATION</span>
+          </div>
+          <div className="lstat__divider" />
+          <div className="lstat">
+            <span className="lstat__val lstat__val--gold">{prize} SOL</span>
+            <span className="lstat__label">PRIZE POOL</span>
+          </div>
         </div>
-        <div className="lobby__count">
-          <span className="count-filled">{playersInLobby}</span>
-          <span className="count-sep"> / </span>
-          <span className="count-total">{SLOTS}</span>
-          <span className="count-label"> PLAYERS READY</span>
+
+        {/* Player list */}
+        <div className="lobby__players">
+          <div className="lobby__players-label">WAITING ROOM</div>
+          <div className="lobby__players-list">
+            {lobbyPlayers.length === 0 && (
+              <div className="lobby__players-empty">Waiting for players...</div>
+            )}
+            {lobbyPlayers.map(p => (
+              <div
+                key={p.player_id}
+                className={`lobby__player ${p.player_id === myId ? 'lobby__player--me' : ''}`}
+              >
+                <span
+                  className="lobby__player-dot"
+                  style={{ background: p.is_host ? 'var(--accent)' : 'var(--safe)' }}
+                />
+                <span className="lobby__player-addr">
+                  {p.player_id?.slice(0, 6)}...{p.player_id?.slice(-4)}
+                </span>
+                {p.is_host && <span className="lobby__badge lobby__badge--host">HOST</span>}
+                {p.player_id === myId && <span className="lobby__badge lobby__badge--you">YOU</span>}
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* Action */}
+        {isHost ? (
+          <div className="lobby__host-area">
+            <p className="lobby__host-hint">You are the host — start when ready.</p>
+            <button className="lobby__start-btn" onClick={handleStart}>
+              START GAME &mdash; {lobbyPlayers.length} PLAYER{lobbyPlayers.length !== 1 ? 'S' : ''}
+            </button>
+          </div>
+        ) : (
+          <div className="lobby__waiting">
+            <span className="lobby__pulse" />
+            WAITING FOR HOST TO START...
+          </div>
+        )}
       </div>
 
-      <div className="lobby__spinner">
-        <div className="spinner-ring" />
-        <span>SCANNING FOR OPPONENTS...</span>
-      </div>
+      <button className="lobby__leave" onClick={() => setScreen('landing')}>
+        LEAVE LOBBY
+      </button>
     </div>
   );
 }

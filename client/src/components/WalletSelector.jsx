@@ -104,7 +104,7 @@ export default function WalletSelector() {
             </div>
 
             <div className="wallet-selector__list">
-              {wallets.filter(w => w.readyState === 'Installed').map((w) => (
+              {wallets.filter(w => w.readyState === 'Installed' && w.adapter.name !== 'MetaMask').map((w) => (
                 <button
                   key={w.adapter.name}
                   className="wallet-selector__item"

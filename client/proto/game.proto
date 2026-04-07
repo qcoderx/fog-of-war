@@ -11,100 +11,185 @@ service AuthService {
 
 message LoginRequest {
   string public_key = 1;
-  string signature = 2;
-  string message = 3;
+  string signature  = 2;
+  string message    = 3;
 }
 
 message LoginResponse {
   string access_token = 1;
-  string player_id = 2;
+  string player_id    = 2;
 }
 
 // Game Service
 service GameService {
-  // Connect to a game session and receive a stream of updates
-  rpc Connect(ConnectRequest) returns (stream GameStateUpdate);
-  
-  // Send player actions
-  rpc Move(MoveRequest) returns (MoveResponse);
-  rpc CollectLoot(CollectLootRequest) returns (CollectLootResponse);
+  // Session lifecycle
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc ListSessions(ListSessionsRequest)   returns (ListSessionsResponse);
+  rpc JoinSession(JoinSessionRequest)     returns (JoinSessionResponse);
+  rpc StartGame(StartGameRequest)         returns (StartGameResponse);
+  rpc WatchLobby(WatchLobbyRequest)       returns (stream LobbyUpdate);
+
+  // In-game
+  rpc Connect(ConnectRequest)           returns (stream GameStateUpdate);
+  rpc Move(MoveRequest)                 returns (MoveResponse);
+  rpc CollectLoot(CollectLootRequest)   returns (CollectLootResponse);
+  rpc Attack(AttackRequest)             returns (AttackResponse);
 }
 
+// ─── In-game Combat ───────────────────────────────────────────────────────
+
+message AttackRequest {
+  string session_id      = 1;
+  string target_player_id = 2;
+}
+
+message AttackResponse {
+  bool   success       = 1;
+  string error_message = 2;
+}
+
+// ─── Session Management ────────────────────────────────────────────────────
+
+message CreateSessionRequest {
+  uint32 max_players      = 1;
+  float  entry_fee        = 2;   // SOL
+  uint32 duration_seconds = 3;
+}
+
+message CreateSessionResponse {
+  string session_id = 1;
+  string error      = 2;
+}
+
+message SessionInfo {
+  string session_id       = 1;
+  string host_id          = 2;
+  uint32 max_players      = 3;
+  uint32 current_players  = 4;
+  float  entry_fee        = 5;
+  uint32 duration_seconds = 6;
+  string status           = 7;   // "waiting" | "in_progress" | "ended"
+}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated SessionInfo sessions = 1;
+}
+
+message JoinSessionRequest {
+  string session_id = 1;
+}
+
+message JoinSessionResponse {
+  bool   success = 1;
+  string error   = 2;
+}
+
+message StartGameRequest {
+  string session_id = 1;
+}
+
+message StartGameResponse {
+  bool   success = 1;
+  string error   = 2;
+}
+
+message WatchLobbyRequest {
+  string session_id = 1;
+}
+
+message LobbyPlayer {
+  string player_id = 1;
+  bool   is_host   = 2;
+}
+
+message LobbyUpdate {
+  string               session_id      = 1;
+  repeated LobbyPlayer players         = 2;
+  uint32               max_players     = 3;
+  float                entry_fee       = 4;
+  uint32               duration_seconds = 5;
+  string               status          = 6;
+  string               host_id         = 7;
+}
+
+// ─── In-game Messages ─────────────────────────────────────────────────────
+
 message ConnectRequest {
-  string game_id = 1;
+  string session_id = 1;
 }
 
 message MoveRequest {
-  string game_id = 1;
-  float target_x = 2;
-  float target_y = 3;
+  string session_id = 1;
+  float  target_x   = 2;
+  float  target_y   = 3;
 }
 
 message MoveResponse {
-  bool success = 1;
+  bool   success       = 1;
   string error_message = 2;
 }
 
 message CollectLootRequest {
-  string game_id = 1;
-  string loot_id = 2;
+  string session_id = 1;
+  string loot_id    = 2;
 }
 
 message CollectLootResponse {
-  bool success = 1;
-  string error_message = 2;
+  bool   success               = 1;
+  string error_message         = 2;
   string new_encrypted_balance = 3;
 }
 
-// Game State Messages
 message GameStateUpdate {
-  string game_id = 1;
-  int64 server_time = 2;
-  repeated Player players = 3;
-  repeated LootItem loot_items = 4;
-  repeated NPC npcs = 5;
-  repeated Hazard hazards = 6;
-  repeated GameEvent events = 7;
+  string              session_id  = 1;
+  int64               server_time = 2;
+  repeated Player     players     = 3;
+  repeated LootItem   loot_items  = 4;
+  repeated NPC        npcs        = 5;
+  repeated Hazard     hazards     = 6;
+  repeated GameEvent  events      = 7;
 }
 
 message Player {
-  string id = 1;
+  string id       = 1;
   string username = 2;
-  float x = 3;
-  float y = 4;
-  int32 health = 5;
-  string status = 6; // alive, extracted, eliminated
-  int32 kills = 7;
+  float  x        = 3;
+  float  y        = 4;
+  int32  health   = 5;
+  string status   = 6;
+  int32  kills    = 7;
 }
 
 message LootItem {
-  string id = 1;
+  string id        = 1;
   string item_type = 2;
-  float x = 3; // Note: In production, these might be hidden or approximate for FOW
-  float y = 4;
-  string status = 5; // available, collected
+  float  x         = 3;
+  float  y         = 4;
+  string status    = 5;
 }
 
 message NPC {
-  string id = 1;
+  string id       = 1;
   string npc_type = 2;
-  float x = 3;
-  float y = 4;
-  int32 health = 5;
+  float  x        = 3;
+  float  y        = 4;
+  int32  health   = 5;
 }
 
 message Hazard {
-  string id = 1;
+  string id          = 1;
   string hazard_type = 2;
-  float x = 3;
-  float y = 4;
-  float radius = 5;
-  bool is_active = 6;
+  float  x           = 3;
+  float  y           = 4;
+  float  radius      = 5;
+  bool   is_active   = 6;
 }
 
 message GameEvent {
   string event_type = 1;
-  string player_id = 2;
-  string target_id = 3;
-  string data = 4; // JSON string for flexible event data
+  string player_id  = 2;
+  string target_id  = 3;
+  string data       = 4;
 }

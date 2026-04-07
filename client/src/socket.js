@@ -1,134 +1,239 @@
 import { AuthClient, GameClient } from './grpc/client';
 import { useGameStore } from './store';
 
-let authClient = new AuthClient();
-let gameClient = null;
-let streamActive = false;
+let authClient  = new AuthClient();
+let gameClient  = null;
+let lobbyStream = null;
+let gameStream  = null;
+
+// ─── Auth ─────────────────────────────────────────────────────────────────
 
 export async function loginWithWallet(publicKey, signMessageFn) {
-  try {
-    const message = 'Sign this message to login to Fog of War';
-    const encodedMessage = new TextEncoder().encode(message);
-    
-    // Call the signMessage function from the wallet
-    const signature = await signMessageFn(encodedMessage);
-    
-    // Convert Uint8Array signature to base64
-    const signatureBase64 = btoa(String.fromCharCode(...signature));
+  const message = 'Sign this message to login to Fog of War';
+  const encoded = new TextEncoder().encode(message);
+  const signature = await signMessageFn(encoded);
+  const sigB64 = btoa(String.fromCharCode(...signature));
 
-    const response = await authClient.login(publicKey.toBase58(), signatureBase64, message);
-    
-    localStorage.setItem('fog_token', response.access_token);
-    localStorage.setItem('fog_player_id', response.player_id);
-    
-    gameClient = new GameClient(response.access_token);
-    
-    return response;
-  } catch (error) {
-    console.error('Login failed:', error);
-    throw error;
+  const pubkeyStr = publicKey.toBase58();
+  const res = await authClient.login(pubkeyStr, sigB64, message);
+  localStorage.setItem('fog_token', res.access_token);
+  localStorage.setItem('fog_player_id', res.player_id);
+  localStorage.setItem('fog_wallet_pubkey', pubkeyStr);
+  gameClient = new GameClient(res.access_token, pubkeyStr);
+  return res;
+}
+
+function ensureClient() {
+  if (!gameClient) {
+    const token  = localStorage.getItem('fog_token');
+    const pubkey = localStorage.getItem('fog_wallet_pubkey') || '';
+    if (!token) throw new Error('Not authenticated');
+    gameClient = new GameClient(token, pubkey);
   }
 }
 
-export function connectToGame(gameId) {
-  if (!gameClient) {
-    const token = localStorage.getItem('fog_token');
-    if (!token) throw new Error('Not authenticated');
-    gameClient = new GameClient(token);
-  }
+// ─── Escrow ───────────────────────────────────────────────────────────────────
 
-  if (streamActive) return;
-  streamActive = true;
+export async function getHouseWallet() {
+  ensureClient();
+  return gameClient.getHouseWallet();
+}
 
+export async function confirmDeposit(sessionId, txSig) {
+  ensureClient();
+  return gameClient.confirmDeposit(sessionId, txSig);
+}
+
+// ─── Session management ───────────────────────────────────────────────────
+
+export async function createSession(maxPlayers, entryFee, durationSeconds, botCount = 0) {
+  ensureClient();
+  return gameClient.createSession(maxPlayers, entryFee, durationSeconds, botCount);
+}
+
+export async function listSessions() {
+  ensureClient();
+  return gameClient.listSessions();
+}
+
+export async function joinSession(sessionId) {
+  ensureClient();
+  return gameClient.joinSession(sessionId);
+}
+
+export async function startGame(sessionId) {
+  ensureClient();
+  return gameClient.startGame(sessionId);
+}
+
+export function watchLobby(sessionId) {
+  ensureClient();
+
+  if (lobbyStream) { try { lobbyStream.cancel(); } catch (_) {} lobbyStream = null; }
+
+  lobbyStream = gameClient.watchLobby(
+    sessionId,
+    (update) => {
+      useGameStore.getState().setLobbyState(update);
+      // When host starts the game the server pushes status: "in_progress"
+      if (update.status === 'in_progress') {
+        if (lobbyStream) { try { lobbyStream.cancel(); } catch (_) {} lobbyStream = null; }
+        connectToGame(sessionId);
+        useGameStore.getState().setScreen('game');
+      }
+    },
+    (err)  => console.error('Lobby stream error:', err),
+    ()     => console.log('Lobby stream ended'),
+  );
+}
+
+// ─── In-game ──────────────────────────────────────────────────────────────
+
+export function connectToGame(sessionId) {
+  ensureClient();
   const store = useGameStore.getState();
   store.setMyId(localStorage.getItem('fog_player_id'));
 
-  gameClient.connectStream(
-    gameId,
+  // Reset game state so stale HP/treasure from a previous game don't bleed in
+  useGameStore.setState({
+    myHp: 100, myTreasure: 0,
+    myPos: { x: 64, y: 64 },
+    players: {}, npcs: [], treasures: [], footprints: [],
+    bloodHuntActive: false, bloodHuntTarget: null,
+    leaderboard: [],
+  });
+
+  if (gameStream) { try { gameStream.cancel(); } catch (_) {} gameStream = null; }
+
+  gameStream = gameClient.connectStream(
+    sessionId,
     (update) => {
-      // Transform backend state to frontend format
+      const store = useGameStore.getState();
+      const myId  = store.myId;
+
+      // Build players map — treasure is authoritative from server
       const players = {};
       (update.players || []).forEach(p => {
         players[p.id] = {
-          id: p.id,
+          id:       p.id,
           username: p.username || 'Player',
-          pos: { x: p.x, y: p.y },
-          hp: p.health,
-          treasure: 0, // backend doesn't expose this yet
-          status: p.status,
+          pos:      { x: p.x, y: p.y },
+          hp:       p.health,
+          treasure: p.treasure ?? 0,
+          status:   p.status,
+          kills:    p.kills ?? 0,
         };
       });
+
+      // Process NPC positions
+      const npcs = (update.npcs || []).map(n => ({
+        id: n.id, x: n.x, y: n.y, hp: n.health,
+      }));
 
       const treasures = (update.loot_items || [])
         .filter(l => l.status === 'available')
         .map(l => ({ x: l.x, y: l.y, id: l.id }));
 
-      // Calculate footprints from player positions (simplified)
-      const footprints = [];
-      Object.values(players).forEach(p => {
-        footprints.push({ x: Math.floor(p.pos.x), y: Math.floor(p.pos.y), age: 0, playerId: p.id });
-      });
+      const footprints = Object.values(players).map(p => ({
+        x: Math.floor(p.pos.x), y: Math.floor(p.pos.y), age: 0, playerId: p.id,
+      }));
 
-      // Find leader for blood hunt
       const leaderboard = Object.values(players)
         .sort((a, b) => (b.treasure || 0) - (a.treasure || 0));
-      
-      const bloodHuntTarget = leaderboard[0]?.id;
 
-      store.applyTick({
+      // Process events
+      let gameOver   = false;
+      let gameWinner = null;
+      let bloodHuntActive = store.bloodHuntActive;
+      let bloodHuntTarget = store.bloodHuntTarget;
+
+      let payoutTx = null;
+      (update.events || []).forEach(ev => {
+        if (ev.event_type === 'game_over') {
+          gameOver   = true;
+          gameWinner = ev.player_id;
+        }
+        if (ev.event_type === 'payout') {
+          payoutTx = ev.data || null;  // Solana tx signature
+          // Update results screen with real tx if already showing
+          const cur = useGameStore.getState();
+          if (cur.screen === 'results') {
+            useGameStore.setState({ payoutTx });
+          }
+        }
+        if (ev.event_type === 'blood_hunt') {
+          bloodHuntActive = true;
+          bloodHuntTarget = ev.player_id;
+        }
+      });
+
+      const remaining    = update.remaining_seconds ?? store.timeLeft;
+      const duration     = store.lobbyDuration || 300;
+      const bhThreshold  = Math.floor(duration * 0.10); // last 10% of session
+      if (remaining <= bhThreshold) bloodHuntActive = true;
+
+      useGameStore.getState().applyTick({
         players,
+        npcs,
         footprints,
         treasures,
-        timeLeft: 300, // backend should send this
-        bloodHuntActive: false, // backend should send this
-        bloodHuntTarget,
-        leaderboard: leaderboard.map(p => ({ id: p.id, treasure: p.treasure || 0, hp: p.hp })),
+        timeLeft:        remaining,
+        bloodHuntActive,
+        bloodHuntTarget: bloodHuntTarget || leaderboard[0]?.id,
+        leaderboard:     leaderboard.map(p => ({ id: p.id, treasure: p.treasure || 0, hp: p.hp })),
       });
+
+      // Eliminated: current player's HP hit 0 — go to results immediately
+      const myPlayer = players[myId];
+      if (myPlayer?.status === 'eliminated' && useGameStore.getState().screen === 'game') {
+        const fee   = store.lobbyFee || 0;
+        const count = Object.keys(players).length;
+        const prize = (count * fee * 0.9).toFixed(2);
+        useGameStore.getState().setResults(gameWinner, prize, payoutTx);
+      }
+
+      if (gameOver) {
+        const fee   = store.lobbyFee || 0;
+        const count = Object.keys(players).length;
+        const prize = (count * fee * 0.9).toFixed(2);
+        useGameStore.getState().setResults(gameWinner, prize, payoutTx);
+      }
     },
-    (error) => {
-      console.error('Stream error:', error);
-      streamActive = false;
-      // Implement reconnect logic
-      setTimeout(() => connectToGame(gameId), 2000);
+    (err) => {
+      console.error('Game stream error:', err);
+      setTimeout(() => connectToGame(sessionId), 2000);
     },
-    () => {
-      console.log('Stream ended');
-      streamActive = false;
-    }
+    () => console.log('Game stream ended'),
   );
 }
 
-export async function sendMove(direction) {
+export async function sendMove(tx, ty) {
   if (!gameClient) return;
+  const { sessionId } = useGameStore.getState();
+  if (!sessionId) return;
+  try { await gameClient.move(sessionId, tx, ty); } catch (e) { console.error('Move failed:', e); }
+}
 
-  const store = useGameStore.getState();
-  const { myPos } = store;
-  const gameId = localStorage.getItem('fog_game_id');
-
-  const delta = { up: [0, -5], down: [0, 5], left: [-5, 0], right: [5, 0] }[direction] || [0, 0];
-  const targetX = Math.max(0, Math.min(128, myPos.x + delta[0]));
-  const targetY = Math.max(0, Math.min(128, myPos.y + delta[1]));
-
+export async function sendAttack(targetPlayerId) {
+  if (!gameClient) return;
+  const { sessionId } = useGameStore.getState();
+  if (!sessionId) return;
   try {
-    await gameClient.move(gameId, targetX, targetY);
-  } catch (error) {
-    console.error('Move failed:', error);
+    return await gameClient.attack(sessionId, targetPlayerId);
+  } catch (e) {
+    console.error('Attack failed:', e);
   }
 }
 
 export async function collectLoot(lootId) {
   if (!gameClient) return;
-
-  const gameId = localStorage.getItem('fog_game_id');
-
+  const { sessionId } = useGameStore.getState();
+  if (!sessionId) return;
   try {
-    const response = await gameClient.collectLoot(gameId, lootId);
-    if (response.success) {
-      console.log('Loot collected!', response.new_encrypted_balance);
-    }
-    return response;
-  } catch (error) {
-    console.error('CollectLoot failed:', error);
-    throw error;
+    const res = await gameClient.collectLoot(sessionId, lootId);
+    if (res.success) console.log('Loot collected!', res.new_encrypted_balance);
+    return res;
+  } catch (e) {
+    console.error('CollectLoot failed:', e);
   }
 }

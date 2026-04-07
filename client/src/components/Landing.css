@@ -176,6 +176,184 @@
 .dot--green { background: var(--safe); box-shadow: 0 0 6px var(--safe); }
 .dot--orange { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 
+.solo-btn {
+  margin-top: 4px;
+  background: transparent;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 2px;
+  height: 36px;
+  padding: 0 20px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.solo-btn:hover {
+  border-color: var(--safe);
+  color: var(--safe);
+  background: rgba(0,255,136,0.05);
+}
+
+.landing__error {
+  color: var(--danger);
+  font-size: 12px;
+  letter-spacing: 1px;
+  border: 1px solid var(--danger);
+  padding: 8px 16px;
+  border-radius: 4px;
+  background: rgba(255,34,68,0.05);
+  max-width: 380px;
+  text-align: center;
+}
+
+.landing__game-btns {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.enter-btn--secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--accent);
+}
+.enter-btn--secondary:hover:not(:disabled) {
+  background: rgba(255,107,0,0.1);
+}
+
+.enter-btn--sm {
+  height: 36px;
+  font-size: 11px;
+  padding: 0 16px;
+}
+
+/* ── Create session form ── */
+.session-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: rgba(13,13,20,0.92);
+  border: 1px solid var(--border);
+  padding: 28px 36px;
+  border-radius: 4px;
+  min-width: 320px;
+  backdrop-filter: blur(8px);
+}
+
+.session-form__title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-align: center;
+}
+
+.session-form__field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.session-form__field input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 2px;
+  width: 90px;
+  text-align: right;
+}
+.session-form__field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.session-form__preview {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  letter-spacing: 1px;
+}
+.session-form__preview strong { color: var(--gold); }
+.session-form__bots { color: var(--muted); font-size: 10px; }
+
+.session-form__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+/* ── Browse sessions list ── */
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(13,13,20,0.92);
+  border: 1px solid var(--border);
+  padding: 20px 24px;
+  border-radius: 4px;
+  min-width: 400px;
+  max-height: 340px;
+  overflow-y: auto;
+  backdrop-filter: blur(8px);
+}
+
+.session-list__title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.session-list__empty {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.session-list__footer {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.session-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  gap: 16px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.session-row:hover {
+  border-color: var(--accent);
+  background: rgba(255,107,0,0.04);
+}
+
+.session-row__info {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.session-row__players { color: var(--text); }
+.session-row__fee     { color: var(--gold); }
+.session-row__time    { color: var(--muted); }
+
 .landing__footer {
   position: absolute;
   bottom: 24px;
