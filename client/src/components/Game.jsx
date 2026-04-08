@@ -121,6 +121,9 @@ export default function Game() {
   const treasureImgRef = useRef(null);
   const playerSpriteRef = useRef(null);
 
+  // Accumulate footprints for multiplayer trail effect
+  const multiplayerTrailRef = useRef([]);
+
   useEffect(() => {
     const treasureImg = new Image();
     treasureImg.src = '/bgcharac.png';
@@ -318,23 +321,24 @@ export default function Game() {
       const ny = Math.max(0, Math.min(GRID_H - 1, myPos.y + dy));
 
       trailRef.current.push({ x: myPos.x, y: myPos.y, ts: Date.now() });
+      // Instant position update (client-side prediction)
       store.setMyPos({ x: nx, y: ny });
 
-      if (localMode) {
-        const picked = treasureRef.current.find(t => t.x === nx && t.y === ny);
-        if (picked) {
+      // Send move to server in both modes
+      if (!localMode) {
+        sendMove(nx, ny);
+      }
+
+      // Auto-collect treasures when walking over them
+      const treasures = localMode ? treasureRef.current : useGameStore.getState().treasures;
+      const picked = treasures?.find(t => t.x === nx && t.y === ny);
+      if (picked) {
+        if (localMode) {
           treasureRef.current = treasureRef.current.filter(t => t.id !== picked.id);
           delete treasureTimerRef.current[picked.id];
           useGameStore.setState({ myTreasure: useGameStore.getState().myTreasure + 1 });
-        }
-      } else {
-        sendMove(nx, ny);
-        // Walk-over loot collection: check new position against known treasures
-        const nearby = useGameStore.getState().treasures?.filter(
-          t => Math.abs(t.x - nx) + Math.abs(t.y - ny) <= 1
-        );
-        if (nearby?.length) {
-          nearby.forEach(t => collectLoot(t.id));
+        } else {
+          collectLoot(picked.id);
         }
       }
     };
@@ -533,12 +537,12 @@ export default function Game() {
 
       const cx = myPos?.x ?? SPAWN_X;
       const cy = myPos?.y ?? SPAWN_Y;
-      
+
       // Smooth interpolation for player position
       targetPosRef.current = { x: cx, y: cy };
       displayPosRef.current.x += (targetPosRef.current.x - displayPosRef.current.x) * MOVE_SPEED;
       displayPosRef.current.y += (targetPosRef.current.y - displayPosRef.current.y) * MOVE_SPEED;
-      
+
       const renderX = displayPosRef.current.x;
       const renderY = displayPosRef.current.y;
 
@@ -563,16 +567,38 @@ export default function Game() {
       }
 
       // ── 3. Footprint heatmap ─────────────────────────────────────
-      const trail = localMode ? trailRef.current : (footprints || []);
+      // Accumulate footprints from all players in multiplayer mode (trailing effect)
+      if (!localMode && stateRef.current.players) {
+        Object.values(stateRef.current.players).forEach(p => {
+          const px = Math.floor(p.pos.x);
+          const py = Math.floor(p.pos.y);
+          // Check if this position is already in trail (avoid duplicates at same tick)
+          const exists = multiplayerTrailRef.current.some(fp => fp.x === px && fp.y === py && (now - fp.ts) < 100);
+          if (!exists) {
+            multiplayerTrailRef.current.push({ x: px, y: py, ts: now });
+          }
+        });
+        // Also add player's own position
+        const myPos = stateRef.current.myPos;
+        if (myPos) {
+          const px = Math.floor(myPos.x);
+          const py = Math.floor(myPos.y);
+          const exists = multiplayerTrailRef.current.some(fp => fp.x === px && fp.y === py && (now - fp.ts) < 100);
+          if (!exists) {
+            multiplayerTrailRef.current.push({ x: px, y: py, ts: now });
+          }
+        }
+        // Clean up old footprints
+        multiplayerTrailRef.current = multiplayerTrailRef.current.filter(fp => (now - fp.ts) / 1000 < 10);
+      }
+
+      const trail = localMode ? trailRef.current : multiplayerTrailRef.current;
       trail.forEach(fp => {
-        const age = localMode ? (now - fp.ts) / 1000 : fp.age;
+        const age = localMode ? (now - fp.ts) / 1000 : (now - fp.ts) / 1000;
         if (age > 10) return;
         ctx.fillStyle = footprintColor(age);
         ctx.fillRect(fp.x * TILE + 1, fp.y * TILE + 1, TILE - 2, TILE - 2);
       });
-      if (localMode) {
-        trailRef.current = trailRef.current.filter(fp => (now - fp.ts) / 1000 < 10);
-      }
 
       // ── 4. Treasures ─────────────────────────────────────────────
       const treasureImg = treasureImgRef.current;
@@ -610,24 +636,24 @@ export default function Game() {
       Object.entries(players || {}).forEach(([id, p], idx) => {
         if (id === myId) return;
         if (p.status === 'eliminated') return;
-        
+
         // Initialize smooth position for this player
         if (!playerDisplayPosRef.current[id]) {
           playerDisplayPosRef.current[id] = { x: p.pos.x, y: p.pos.y };
         }
-        
+
         // Smooth interpolation
         playerDisplayPosRef.current[id].x += (p.pos.x - playerDisplayPosRef.current[id].x) * MOVE_SPEED;
         playerDisplayPosRef.current[id].y += (p.pos.y - playerDisplayPosRef.current[id].y) * MOVE_SPEED;
-        
+
         const px = playerDisplayPosRef.current[id].x * TILE;
         const py = playerDisplayPosRef.current[id].y * TILE;
 
-        const charIndex = (idx + 1) % 8;
+        const charIndex = p.character_idx ?? (idx + 1) % 8;  // Use server character or fallback to index
         const spriteSize = TILE * 2.5;
         const spriteX = px - (spriteSize - TILE) / 2;
         const spriteY = py - (spriteSize - TILE) / 2;
-        
+
         const drawn = drawPlayerSprite(ctx, playerSprite, spriteX, spriteY, spriteSize, charIndex);
         
         if (!drawn) {
@@ -696,23 +722,42 @@ export default function Game() {
 
       // ── 5c. Server-side NPCs (multiplayer) ───────────────────────
       if (!localMode && npcs) {
-        npcs.forEach(npc => {
+        npcs.forEach((npc, idx) => {
           const px = npc.x * TILE;
           const py = npc.y * TILE;
           const dist = Math.abs(npc.x - cx) + Math.abs(npc.y - cy);
-          if (dist <= 1) {
-            ctx.fillStyle = `rgba(255,80,0,${0.7 + 0.3 * Math.sin(frame * 0.4)})`;
-          } else {
-            ctx.fillStyle = '#cc3300';
+          
+          const charIndex = (idx + 4) % 8; // NPCs use characters 4-7
+          const spriteSize = TILE * 2.5;
+          const spriteX = px - (spriteSize - TILE) / 2;
+          const spriteY = py - (spriteSize - TILE) / 2;
+          
+          const drawn = drawPlayerSprite(ctx, playerSprite, spriteX, spriteY, spriteSize, charIndex);
+          
+          if (!drawn) {
+            if (dist <= 1) {
+              ctx.fillStyle = `rgba(255,80,0,${0.7 + 0.3 * Math.sin(frame * 0.4)})`;
+            } else {
+              ctx.fillStyle = '#cc3300';
+            }
+            // Fallback to diamond shape
+            ctx.beginPath();
+            ctx.moveTo(px + TILE / 2, py + 1);
+            ctx.lineTo(px + TILE - 1, py + TILE / 2);
+            ctx.lineTo(px + TILE / 2, py + TILE - 1);
+            ctx.lineTo(px + 1,        py + TILE / 2);
+            ctx.closePath();
+            ctx.fill();
+          } else if (dist <= 1) {
+            // Glow effect for NPCs in combat range
+            ctx.shadowColor = 'rgba(255,80,0,0.8)';
+            ctx.shadowBlur = 12;
+            ctx.strokeStyle = `rgba(255,80,0,${0.7 + 0.3 * Math.sin(frame * 0.4)})`;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(px, py, TILE, TILE);
+            ctx.shadowBlur = 0;
           }
-          // Draw NPC as a diamond shape to distinguish from players
-          ctx.beginPath();
-          ctx.moveTo(px + TILE / 2, py + 1);
-          ctx.lineTo(px + TILE - 1, py + TILE / 2);
-          ctx.lineTo(px + TILE / 2, py + TILE - 1);
-          ctx.lineTo(px + 1,        py + TILE / 2);
-          ctx.closePath();
-          ctx.fill();
+
           const hpW = ((npc.hp ?? 100) / 100) * (TILE - 2);
           ctx.fillStyle = 'rgba(0,0,0,0.6)';
           ctx.fillRect(px + 1, py - 3, TILE - 2, 2);
@@ -725,13 +770,13 @@ export default function Game() {
       const mx = renderX * TILE;
       const my = renderY * TILE;
       const hitFlash = (now - flashRef.current) < 200;
-      
-      // Draw player sprite (character 0 - knight)
-      const myCharIndex = 0;
+
+      // Draw player sprite using selected character
+      const myCharIndex = store.selectedCharacter;
       const mySpriteSize = TILE * 2.5; // Bigger sprite
       const mySpriteX = mx - (mySpriteSize - TILE) / 2;
       const mySpriteY = my - (mySpriteSize - TILE) / 2;
-      
+
       const myDrawn = drawPlayerSprite(ctx, playerSprite, mySpriteX, mySpriteY, mySpriteSize, myCharIndex);
       
       if (!myDrawn) {

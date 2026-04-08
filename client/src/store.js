@@ -2,10 +2,11 @@ import { create } from 'zustand';
 
 export const useGameStore = create((set, get) => ({
   // screens: 'landing' | 'lobby' | 'game' | 'results'
-  screen:        'landing',
-  walletAddress: null,
-  solBalance:    null,
-  localMode:     false,
+  screen:            'landing',
+  walletAddress:     null,
+  solBalance:        null,
+  localMode:         false,
+  selectedCharacter: 0,  // 0-7: player's selected character sprite
 
   // session
   sessionId:    null,
@@ -37,15 +38,16 @@ export const useGameStore = create((set, get) => ({
   payout:    0,
   payoutTx:  null,   // Solana tx signature of the payout
 
-  setScreen:     (screen)          => set({ screen }),
-  setWallet:     (address, balance) => set({ walletAddress: address, solBalance: balance }),
-  setMyId:       (id)              => set({ myId: id }),
-  setMyPos:      (pos)             => set({ myPos: pos }),
-  setLocalMode:  (v)               => set({ localMode: v }),
-  setTimeLeft:   (t)               => set({ timeLeft: t }),
-  setSessionId:  (id)              => set({ sessionId: id }),
-  setIsHost:     (v)               => set({ isHost: v }),
-  setSessions:   (list)            => set({ sessions: list }),
+  setScreen:            (screen)          => set({ screen }),
+  setWallet:            (address, balance) => set({ walletAddress: address, solBalance: balance }),
+  setMyId:              (id)              => set({ myId: id }),
+  setMyPos:             (pos)             => set({ myPos: pos }),
+  setLocalMode:         (v)               => set({ localMode: v }),
+  setTimeLeft:          (t)               => set({ timeLeft: t }),
+  setSessionId:         (id)              => set({ sessionId: id }),
+  setIsHost:            (v)               => set({ isHost: v }),
+  setSessions:          (list)            => set({ sessions: list }),
+  setSelectedCharacter: (idx)             => set({ selectedCharacter: Math.min(7, Math.max(0, idx)) }),
 
   setLobbyState: (update) => set({
     lobbyPlayers:  update.players         || [],

@@ -83,9 +83,8 @@ export default function Landing() {
   const ensureAuth = async () => {
     if (!connected || !publicKey) throw new Error('Connect your wallet first');
     if (!wallet.signMessage)     throw new Error('Wallet does not support message signing');
-    if (!localStorage.getItem('fog_token')) {
-      await loginWithWallet(publicKey, wallet.signMessage);
-    }
+    // Always refresh token to avoid expiration errors
+    await loginWithWallet(publicKey, wallet.signMessage);
   };
 
   const handleHost = async (e) => {
@@ -223,6 +222,23 @@ export default function Landing() {
             <button className="solo-btn" onClick={handleSoloPlay}>
               PLAY SOLO (NO WALLET)
             </button>
+
+            {/* Character Selector */}
+            <div className="character-selector">
+              <div className="character-selector__label">SELECT CHARACTER (0-7)</div>
+              <div className="character-selector__grid">
+                {Array.from({ length: 8 }, (_, i) => (
+                  <button
+                    key={i}
+                    className={`char-btn ${store.selectedCharacter === i ? 'char-btn--selected' : ''}`}
+                    onClick={() => store.setSelectedCharacter(i)}
+                    title={`Character ${i}`}
+                  >
+                    {i}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
