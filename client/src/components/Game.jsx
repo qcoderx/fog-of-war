@@ -4,14 +4,18 @@ import { sendMove, sendAttack, collectLoot } from '../socket';
 import HUD from './HUD';
 import './Game.css';
 
-const TILE        = 8;    // 8 px/tile → 128×128 = 1024×1024 canvas
+const TILE        = 16;   // 16 px/tile → 128×128 = 2048×2048 canvas
 const GRID_W      = 128;
 const GRID_H      = 128;
 const FOG_RADIUS  = 5;    // tiles visible around player
 const SPAWN_X     = 64;
 const SPAWN_Y     = 64;
-const BOT_COUNT   = 4;
+const BOT_COUNT   = 7;
 const BOT_TICK_MS = 500;  // bot AI runs at 2 Hz
+const MOVE_SPEED  = 0.15; // Smooth interpolation speed (0-1, higher = faster)
+const TREASURE_DESPAWN_DIST = 20; // tiles away before treasure can despawn
+const TREASURE_DESPAWN_TIME = 5000; // ms player must be away
+const BOT_DESPAWN_TIME = 15000; // ms without combat before bot respawns
 
 // PRD heatmap colors
 function footprintColor(age) {
@@ -20,19 +24,44 @@ function footprintColor(age) {
   return            'rgba(68,136,255,0.35)';
 }
 
+// Draw player sprite from character sheet
+// charIndex: 0-7 (0-3 top row, 4-7 bottom row)
+function drawPlayerSprite(ctx, spriteImg, x, y, size, charIndex = 0) {
+  if (!spriteImg || !spriteImg.complete) return false;
+  
+  // Character sheet is 4 columns × 2 rows
+  const row = Math.floor(charIndex / 4);
+  const col = charIndex % 4;
+  
+  // Source dimensions (assuming each character is 1/4 width, 1/2 height)
+  const srcW = spriteImg.width / 4;
+  const srcH = spriteImg.height / 2;
+  const srcX = col * srcW;
+  const srcY = row * srcH;
+  
+  // Draw scaled sprite
+  ctx.drawImage(
+    spriteImg,
+    srcX, srcY, srcW, srcH,  // source
+    x, y, size, size         // destination
+  );
+  
+  return true;
+}
+
 // Treasures: cluster some near spawn so player sees them immediately
 function genLocalTreasures() {
   const out = [];
-  // 8 near spawn (within 8 tiles)
-  for (let i = 0; i < 8; i++) {
+  // 15 near spawn (within 10 tiles)
+  for (let i = 0; i < 15; i++) {
     out.push({
       id: `tn${i}`,
-      x: Math.max(1, Math.min(GRID_W - 2, SPAWN_X + Math.round((Math.random() - 0.5) * 14))),
-      y: Math.max(1, Math.min(GRID_H - 2, SPAWN_Y + Math.round((Math.random() - 0.5) * 14))),
+      x: Math.max(1, Math.min(GRID_W - 2, SPAWN_X + Math.round((Math.random() - 0.5) * 20))),
+      y: Math.max(1, Math.min(GRID_H - 2, SPAWN_Y + Math.round((Math.random() - 0.5) * 20))),
     });
   }
-  // 22 scattered across map
-  for (let i = 0; i < 22; i++) {
+  // 35 scattered across map
+  for (let i = 0; i < 35; i++) {
     out.push({
       id: `tr${i}`,
       x: 4 + Math.floor(Math.random() * (GRID_W - 8)),
@@ -53,14 +82,54 @@ function makeBot(i) {
   };
 }
 
+function respawnBot(bot) {
+  return {
+    ...bot,
+    x: 40 + Math.floor(Math.random() * 50),
+    y: 40 + Math.floor(Math.random() * 50),
+    hp: 100,
+    status: 'alive',
+  };
+}
+
+function respawnTreasure() {
+  return {
+    id: `tr_${Date.now()}_${Math.random()}`,
+    x: 4 + Math.floor(Math.random() * (GRID_W - 8)),
+    y: 4 + Math.floor(Math.random() * (GRID_H - 8)),
+  };
+}
+
 export default function Game() {
   const canvasRef   = useRef(null);
   const stateRef    = useRef({});
   const trailRef    = useRef([]);
   const treasureRef = useRef(genLocalTreasures());
+  const treasureTimerRef = useRef({}); // track time player is away from each treasure
   const botsRef     = useRef([]);          // local-mode AI bots
+  const botCombatTimerRef = useRef({}); // track last combat time for each bot
   const flashRef    = useRef(0);           // combat hit flash timestamp
   const store       = useGameStore();
+
+  // Smooth interpolation refs
+  const displayPosRef = useRef({ x: SPAWN_X, y: SPAWN_Y }); // Rendered position
+  const targetPosRef = useRef({ x: SPAWN_X, y: SPAWN_Y });  // Target position
+  const botDisplayPosRef = useRef([]);     // Bot smooth positions
+  const playerDisplayPosRef = useRef({});  // Other players smooth positions
+
+  // Load sprite images
+  const treasureImgRef = useRef(null);
+  const playerSpriteRef = useRef(null);
+
+  useEffect(() => {
+    const treasureImg = new Image();
+    treasureImg.src = '/bgcharac.png';
+    treasureImgRef.current = treasureImg;
+
+    const playerSprite = new Image();
+    playerSprite.src = '/bgcharac1.png';
+    playerSpriteRef.current = playerSprite;
+  }, []);
 
   // Movement prompt: shown until player makes their first move (non-solo only)
   const [showSpawnPrompt, setShowSpawnPrompt] = useState(!store.localMode);
@@ -109,6 +178,10 @@ export default function Game() {
 
     // spawn bots
     botsRef.current = Array.from({ length: BOT_COUNT }, (_, i) => makeBot(i));
+    const now = Date.now();
+    botsRef.current.forEach(bot => {
+      botCombatTimerRef.current[bot.id] = now;
+    });
 
     const id = setInterval(() => {
       const { myPos } = useGameStore.getState();
@@ -117,6 +190,7 @@ export default function Game() {
       let myHp = useGameStore.getState().myHp;
       let myTreasure = useGameStore.getState().myTreasure;
       let hitThisTick = false;
+      const now = Date.now();
 
       botsRef.current = botsRef.current.map(bot => {
         if (bot.status !== 'alive') return bot;
@@ -127,8 +201,8 @@ export default function Game() {
         let nx = bot.x;
         let ny = bot.y;
 
-        if (Math.random() < 0.65) {
-          // move towards player
+        if (Math.random() < 0.85) {
+          // move towards player (more aggressive)
           if (Math.abs(dx) >= Math.abs(dy)) {
             nx += Math.sign(dx);
           } else {
@@ -151,8 +225,16 @@ export default function Game() {
           myHp       = Math.max(0, myHp - 5);
           botHp      = Math.max(0, botHp - 5);
           hitThisTick = true;
+          botCombatTimerRef.current[bot.id] = now; // reset combat timer
           // loot bot's treasure if it dies
           if (botHp <= 0) myTreasure += 1;
+        }
+
+        // Despawn & respawn if no combat for too long
+        const timeSinceCombat = now - (botCombatTimerRef.current[bot.id] || now);
+        if (timeSinceCombat > BOT_DESPAWN_TIME) {
+          botCombatTimerRef.current[bot.id] = now;
+          return respawnBot(bot);
         }
 
         return {
@@ -174,6 +256,7 @@ export default function Game() {
     return () => {
       clearInterval(id);
       botsRef.current = [];
+      botCombatTimerRef.current = {};
     };
   }, [store.localMode]);
 
@@ -231,6 +314,7 @@ export default function Game() {
         const picked = treasureRef.current.find(t => t.x === nx && t.y === ny);
         if (picked) {
           treasureRef.current = treasureRef.current.filter(t => t.id !== picked.id);
+          delete treasureTimerRef.current[picked.id];
           useGameStore.setState({ myTreasure: useGameStore.getState().myTreasure + 1 });
         }
       } else {
@@ -249,12 +333,63 @@ export default function Game() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // ── Treasure despawn/respawn logic ──────────────────────────────────────
+  useEffect(() => {
+    if (!store.localMode) return;
+
+    const id = setInterval(() => {
+      const { myPos } = useGameStore.getState();
+      if (!myPos) return;
+
+      const now = Date.now();
+      const toRespawn = [];
+
+      treasureRef.current.forEach(treasure => {
+        const dist = Math.abs(treasure.x - myPos.x) + Math.abs(treasure.y - myPos.y);
+        
+        if (dist > TREASURE_DESPAWN_DIST) {
+          // Start or continue timer
+          if (!treasureTimerRef.current[treasure.id]) {
+            treasureTimerRef.current[treasure.id] = now;
+          } else {
+            const elapsed = now - treasureTimerRef.current[treasure.id];
+            if (elapsed > TREASURE_DESPAWN_TIME) {
+              toRespawn.push(treasure.id);
+            }
+          }
+        } else {
+          // Player is close, reset timer
+          delete treasureTimerRef.current[treasure.id];
+        }
+      });
+
+      // Despawn old treasures and spawn new ones
+      if (toRespawn.length > 0) {
+        treasureRef.current = treasureRef.current.filter(t => !toRespawn.includes(t.id));
+        toRespawn.forEach(id => {
+          delete treasureTimerRef.current[id];
+          treasureRef.current.push(respawnTreasure());
+        });
+      }
+    }, 1000); // Check every second
+
+    return () => {
+      clearInterval(id);
+      treasureTimerRef.current = {};
+    };
+  }, [store.localMode]);
+
   // ── render loop ──────────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
-    const ctx    = canvas.getContext('2d');
-    canvas.width  = GRID_W * TILE;  // 1024
-    canvas.height = GRID_H * TILE;  // 1024
+    const ctx    = canvas.getContext('2d', { alpha: false });
+    
+    // Enable image smoothing for better sprite quality
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    canvas.width  = GRID_W * TILE;
+    canvas.height = GRID_H * TILE;
     let raf;
     let frame = 0;
 
@@ -276,6 +411,14 @@ export default function Game() {
 
       const cx = myPos?.x ?? SPAWN_X;
       const cy = myPos?.y ?? SPAWN_Y;
+      
+      // Smooth interpolation for player position
+      targetPosRef.current = { x: cx, y: cy };
+      displayPosRef.current.x += (targetPosRef.current.x - displayPosRef.current.x) * MOVE_SPEED;
+      displayPosRef.current.y += (targetPosRef.current.y - displayPosRef.current.y) * MOVE_SPEED;
+      
+      const renderX = displayPosRef.current.x;
+      const renderY = displayPosRef.current.y;
 
       // ── 1. Background ────────────────────────────────────────────
       ctx.fillStyle = '#050508';
@@ -310,28 +453,65 @@ export default function Game() {
       }
 
       // ── 4. Treasures ─────────────────────────────────────────────
+      const treasureImg = treasureImgRef.current;
       (treasures || []).forEach(({ x, y }) => {
-        const pulse = 0.7 + 0.3 * Math.sin(frame * 0.08);
-        ctx.fillStyle = `rgba(255,215,0,${pulse})`;
-        ctx.beginPath();
-        ctx.arc(x * TILE + TILE / 2, y * TILE + TILE / 2, 3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,215,0,0.4)';
-        ctx.lineWidth   = 0.5;
-        ctx.beginPath();
-        ctx.arc(x * TILE + TILE / 2, y * TILE + TILE / 2, 5 * pulse, 0, Math.PI * 2);
-        ctx.stroke();
+        const px = x * TILE;
+        const py = y * TILE;
+        
+        if (treasureImg && treasureImg.complete) {
+          // Draw treasure chest image (scaled to fit tile)
+          const size = TILE * 2; // Bigger chest
+          const offsetX = px - (size - TILE) / 2;
+          const offsetY = py - (size - TILE) / 2;
+          ctx.drawImage(treasureImg, offsetX, offsetY, size, size);
+          
+          // Add subtle glow effect
+          const pulse = 0.7 + 0.3 * Math.sin(frame * 0.08);
+          ctx.shadowColor = `rgba(255,215,0,${pulse * 0.5})`;
+          ctx.shadowBlur = 8;
+          ctx.strokeStyle = `rgba(255,215,0,${pulse * 0.3})`;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px, py, TILE, TILE);
+          ctx.shadowBlur = 0;
+        } else {
+          // Fallback if image not loaded
+          const pulse = 0.7 + 0.3 * Math.sin(frame * 0.08);
+          ctx.fillStyle = `rgba(255,215,0,${pulse})`;
+          ctx.beginPath();
+          ctx.arc(px + TILE / 2, py + TILE / 2, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
       });
 
       // ── 5. Other players (online) ─────────────────────────────────
-      Object.entries(players || {}).forEach(([id, p]) => {
+      const playerSprite = playerSpriteRef.current;
+      Object.entries(players || {}).forEach(([id, p], idx) => {
         if (id === myId) return;
-        if (p.status === 'eliminated') return;  // don't render dead players
-        const px = p.pos.x * TILE;
-        const py = p.pos.y * TILE;
+        if (p.status === 'eliminated') return;
+        
+        // Initialize smooth position for this player
+        if (!playerDisplayPosRef.current[id]) {
+          playerDisplayPosRef.current[id] = { x: p.pos.x, y: p.pos.y };
+        }
+        
+        // Smooth interpolation
+        playerDisplayPosRef.current[id].x += (p.pos.x - playerDisplayPosRef.current[id].x) * MOVE_SPEED;
+        playerDisplayPosRef.current[id].y += (p.pos.y - playerDisplayPosRef.current[id].y) * MOVE_SPEED;
+        
+        const px = playerDisplayPosRef.current[id].x * TILE;
+        const py = playerDisplayPosRef.current[id].y * TILE;
 
-        ctx.fillStyle = '#ff2244';
-        ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
+        const charIndex = (idx + 1) % 8;
+        const spriteSize = TILE * 2.5;
+        const spriteX = px - (spriteSize - TILE) / 2;
+        const spriteY = py - (spriteSize - TILE) / 2;
+        
+        const drawn = drawPlayerSprite(ctx, playerSprite, spriteX, spriteY, spriteSize, charIndex);
+        
+        if (!drawn) {
+          ctx.fillStyle = '#ff2244';
+          ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
+        }
 
         const hpW = ((p.hp ?? 100) / 100) * (TILE - 2);
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -342,21 +522,48 @@ export default function Game() {
 
       // ── 5b. Local-mode bots ───────────────────────────────────────
       if (localMode) {
-        botsRef.current.forEach(bot => {
+        // Initialize bot display positions if needed
+        if (botDisplayPosRef.current.length !== botsRef.current.length) {
+          botDisplayPosRef.current = botsRef.current.map(b => ({ x: b.x, y: b.y }));
+        }
+        
+        botsRef.current.forEach((bot, idx) => {
           if (bot.status !== 'alive') return;
-          const px = bot.x * TILE;
-          const py = bot.y * TILE;
+          
+          // Smooth interpolation for bot movement
+          if (!botDisplayPosRef.current[idx]) {
+            botDisplayPosRef.current[idx] = { x: bot.x, y: bot.y };
+          }
+          botDisplayPosRef.current[idx].x += (bot.x - botDisplayPosRef.current[idx].x) * MOVE_SPEED;
+          botDisplayPosRef.current[idx].y += (bot.y - botDisplayPosRef.current[idx].y) * MOVE_SPEED;
+          
+          const px = botDisplayPosRef.current[idx].x * TILE;
+          const py = botDisplayPosRef.current[idx].y * TILE;
           const dist = Math.abs(bot.x - cx) + Math.abs(bot.y - cy);
 
-          // combat proximity flash — bot turns orange when adjacent
-          if (dist <= 1) {
-            ctx.fillStyle = `rgba(255,80,0,${0.7 + 0.3 * Math.sin(frame * 0.4)})`;
-          } else {
-            ctx.fillStyle = '#ff2244';
+          const charIndex = (idx + 2) % 8;
+          const spriteSize = TILE * 2.5;
+          const spriteX = px - (spriteSize - TILE) / 2;
+          const spriteY = py - (spriteSize - TILE) / 2;
+          
+          const drawn = drawPlayerSprite(ctx, playerSprite, spriteX, spriteY, spriteSize, charIndex);
+          
+          if (!drawn) {
+            if (dist <= 1) {
+              ctx.fillStyle = `rgba(255,80,0,${0.7 + 0.3 * Math.sin(frame * 0.4)})`;
+            } else {
+              ctx.fillStyle = '#ff2244';
+            }
+            ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
+          } else if (dist <= 1) {
+            ctx.shadowColor = 'rgba(255,80,0,0.8)';
+            ctx.shadowBlur = 12;
+            ctx.strokeStyle = `rgba(255,80,0,${0.7 + 0.3 * Math.sin(frame * 0.4)})`;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(px, py, TILE, TILE);
+            ctx.shadowBlur = 0;
           }
-          ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
 
-          // hp bar
           const hpW = (bot.hp / 100) * (TILE - 2);
           ctx.fillStyle = 'rgba(0,0,0,0.6)';
           ctx.fillRect(px + 1, py - 3, TILE - 2, 2);
@@ -393,14 +600,43 @@ export default function Game() {
       }
 
       // ── 6. My player ─────────────────────────────────────────────
-      const mx = cx * TILE;
-      const my = cy * TILE;
-      const hitFlash = (now - flashRef.current) < 200; // 200ms red flash on hit
-      ctx.fillStyle   = hitFlash ? '#ff4444' : '#00ff88';
-      ctx.shadowColor = hitFlash ? '#ff0000' : '#00ff88';
-      ctx.shadowBlur  = hitFlash ? 20 : 12;
-      ctx.fillRect(mx + 1, my + 1, TILE - 2, TILE - 2);
-      ctx.shadowBlur  = 0;
+      const mx = renderX * TILE;
+      const my = renderY * TILE;
+      const hitFlash = (now - flashRef.current) < 200;
+      
+      // Draw player sprite (character 0 - knight)
+      const myCharIndex = 0;
+      const mySpriteSize = TILE * 2.5; // Bigger sprite
+      const mySpriteX = mx - (mySpriteSize - TILE) / 2;
+      const mySpriteY = my - (mySpriteSize - TILE) / 2;
+      
+      const myDrawn = drawPlayerSprite(ctx, playerSprite, mySpriteX, mySpriteY, mySpriteSize, myCharIndex);
+      
+      if (!myDrawn) {
+        // Fallback to colored square
+        ctx.fillStyle   = hitFlash ? '#ff4444' : '#00ff88';
+        ctx.shadowColor = hitFlash ? '#ff0000' : '#00ff88';
+        ctx.shadowBlur  = hitFlash ? 20 : 12;
+        ctx.fillRect(mx + 1, my + 1, TILE - 2, TILE - 2);
+        ctx.shadowBlur  = 0;
+      } else {
+        // Add glow effect to sprite
+        if (hitFlash) {
+          ctx.shadowColor = '#ff0000';
+          ctx.shadowBlur = 20;
+          ctx.strokeStyle = 'rgba(255,0,0,0.8)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(mx, my, TILE, TILE);
+          ctx.shadowBlur = 0;
+        } else {
+          ctx.shadowColor = '#00ff88';
+          ctx.shadowBlur = 12;
+          ctx.strokeStyle = 'rgba(0,255,136,0.5)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(mx, my, TILE, TILE);
+          ctx.shadowBlur = 0;
+        }
+      }
 
       // ── 7. Fog of War (destination-out spotlight) ─────────────────
       fctx.fillStyle = 'rgba(5,5,8,0.94)';
