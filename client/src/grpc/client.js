@@ -149,7 +149,7 @@ export class GameClient {
         id: p.getId(), username: p.getUsername(),
         x: p.getX(), y: p.getY(),
         health: p.getHealth(), status: p.getStatus(), kills: p.getKills(),
-        treasure: p.getTreasure(),
+        treasure: p.getTreasure(), character_idx: (p.getCharacterIdx && p.getCharacterIdx()) || 0,
       }));
       const loot_items = r.getLootItemsList().map(l => ({
         id: l.getId(), item_type: l.getItemType(),

@@ -115,13 +115,14 @@ export function connectToGame(sessionId) {
       const players = {};
       (update.players || []).forEach(p => {
         players[p.id] = {
-          id:       p.id,
-          username: p.username || 'Player',
-          pos:      { x: p.x, y: p.y },
-          hp:       p.health,
-          treasure: p.treasure ?? 0,
-          status:   p.status,
-          kills:    p.kills ?? 0,
+          id:             p.id,
+          username:       p.username || 'Player',
+          pos:            { x: p.x, y: p.y },
+          hp:             p.health,
+          treasure:       p.treasure ?? 0,
+          status:         p.status,
+          kills:          p.kills ?? 0,
+          character_idx:  p.character_idx ?? 0,
         };
       });
 

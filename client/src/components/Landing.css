@@ -364,3 +364,58 @@
   letter-spacing: 1px;
   z-index: 1;
 }
+
+/* ── Character Selector ── */
+.character-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: rgba(13,13,20,0.8);
+  border: 1px solid var(--border);
+  padding: 12px 20px;
+  border-radius: 4px;
+  backdrop-filter: blur(8px);
+  flex-basis: 100%;
+  margin-top: 8px;
+}
+
+.character-selector__label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-align: center;
+}
+
+.character-selector__grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+
+.char-btn {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s;
+}
+
+.char-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(255,107,0,0.1);
+}
+
+.char-btn--selected {
+  border-color: var(--accent);
+  background: rgba(255,107,0,0.25);
+  color: var(--accent);
+  box-shadow: 0 0 8px rgba(255,107,0,0.4);
+}
