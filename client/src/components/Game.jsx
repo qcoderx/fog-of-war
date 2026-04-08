@@ -129,11 +129,21 @@ export default function Game() {
     const playerSprite = new Image();
     playerSprite.src = '/bgcharac1.png';
     playerSpriteRef.current = playerSprite;
+    
+    // Detect mobile
+    setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
   // Movement prompt: shown until player makes their first move (non-solo only)
   const [showSpawnPrompt, setShowSpawnPrompt] = useState(!store.localMode);
   const hasMoved = useRef(false);
+  
+  // Mobile touch controls
+  const [isMobile, setIsMobile] = useState(false);
+  const touchStartRef = useRef(null);
+  const joystickRef = useRef(null);
+  const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
+  const moveIntervalRef = useRef(null);
 
   // ── Reload lock: warn user if they try to leave mid-game ────────────────
   useEffect(() => {
@@ -333,6 +343,105 @@ export default function Game() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // ── Mobile touch controls ───────────────────────────────────────────────
+  const handleMove = (dx, dy) => {
+    const { localMode, myPos } = stateRef.current;
+    if (!myPos) return;
+
+    if (!hasMoved.current) {
+      hasMoved.current = true;
+      setShowSpawnPrompt(false);
+    }
+
+    const nx = Math.max(0, Math.min(GRID_W - 1, myPos.x + dx));
+    const ny = Math.max(0, Math.min(GRID_H - 1, myPos.y + dy));
+
+    trailRef.current.push({ x: myPos.x, y: myPos.y, ts: Date.now() });
+    store.setMyPos({ x: nx, y: ny });
+
+    if (localMode) {
+      const picked = treasureRef.current.find(t => t.x === nx && t.y === ny);
+      if (picked) {
+        treasureRef.current = treasureRef.current.filter(t => t.id !== picked.id);
+        delete treasureTimerRef.current[picked.id];
+        useGameStore.setState({ myTreasure: useGameStore.getState().myTreasure + 1 });
+      }
+    } else {
+      sendMove(nx, ny);
+      const nearby = useGameStore.getState().treasures?.filter(
+        t => Math.abs(t.x - nx) + Math.abs(t.y - ny) <= 1
+      );
+      if (nearby?.length) {
+        nearby.forEach(t => collectLoot(t.id));
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const handleTouchStart = (e) => {
+      const touch = e.touches[0];
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    };
+
+    const handleTouchMove = (e) => {
+      e.preventDefault();
+      if (!touchStartRef.current) return;
+      
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStartRef.current.x;
+      const dy = touch.clientY - touchStartRef.current.y;
+      
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const maxDist = 50;
+      const clampedDist = Math.min(distance, maxDist);
+      const angle = Math.atan2(dy, dx);
+      
+      setJoystickPos({
+        x: Math.cos(angle) * clampedDist,
+        y: Math.sin(angle) * clampedDist
+      });
+
+      if (distance > 15 && !moveIntervalRef.current) {
+        const moveDir = () => {
+          const angle = Math.atan2(dy, dx);
+          const absDx = Math.abs(dx);
+          const absDy = Math.abs(dy);
+          
+          if (absDx > absDy) {
+            handleMove(dx > 0 ? 1 : -1, 0);
+          } else {
+            handleMove(0, dy > 0 ? 1 : -1);
+          }
+        };
+        
+        moveDir();
+        moveIntervalRef.current = setInterval(moveDir, 200);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      touchStartRef.current = null;
+      setJoystickPos({ x: 0, y: 0 });
+      if (moveIntervalRef.current) {
+        clearInterval(moveIntervalRef.current);
+        moveIntervalRef.current = null;
+      }
+    };
+
+    window.addEventListener('touchstart', handleTouchStart);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      if (moveIntervalRef.current) clearInterval(moveIntervalRef.current);
+    };
+  }, [isMobile]);
+
   // ── Treasure despawn/respawn logic ──────────────────────────────────────
   useEffect(() => {
     if (!store.localMode) return;
@@ -388,8 +497,21 @@ export default function Game() {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     
+    // Responsive canvas sizing
+    const updateCanvasSize = () => {
+      const maxWidth = window.innerWidth - 32;
+      const maxHeight = window.innerHeight - 120;
+      const scale = Math.min(maxWidth / (GRID_W * TILE), maxHeight / (GRID_H * TILE), 1);
+      
+      canvas.style.width = `${GRID_W * TILE * scale}px`;
+      canvas.style.height = `${GRID_H * TILE * scale}px`;
+    };
+    
     canvas.width  = GRID_W * TILE;
     canvas.height = GRID_H * TILE;
+    updateCanvasSize();
+    
+    window.addEventListener('resize', updateCanvasSize);
     let raf;
     let frame = 0;
 
@@ -747,7 +869,10 @@ export default function Game() {
     };
 
     render();
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', updateCanvasSize);
+    };
   }, []);
 
   return (
@@ -777,9 +902,26 @@ export default function Game() {
         </div>
       )}
 
-      <div className="game__controls-hint">
-        WASD / ARROWS — MOVE &nbsp;|&nbsp; SPACE / F — ATTACK
-      </div>
+      {!isMobile && (
+        <div className="game__controls-hint">
+          WASD / ARROWS — MOVE &nbsp;|&nbsp; SPACE / F — ATTACK
+        </div>
+      )}
+
+      {/* Mobile joystick */}
+      {isMobile && (
+        <div className="mobile-joystick" ref={joystickRef}>
+          <div className="joystick-base">
+            <div 
+              className="joystick-stick" 
+              style={{
+                transform: `translate(${joystickPos.x}px, ${joystickPos.y}px)`
+              }}
+            />
+          </div>
+          <div className="mobile-hint">DRAG TO MOVE</div>
+        </div>
+      )}
     </div>
   );
 }

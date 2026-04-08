@@ -22,6 +22,11 @@ html, body, #root {
   color: var(--text);
   font-family: 'Share Tech Mono', monospace;
   overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 button {

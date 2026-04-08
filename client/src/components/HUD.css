@@ -156,3 +156,139 @@
   padding: 6px 12px;
   border-radius: 4px;
 }
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .hud-top {
+    padding: 8px 12px;
+  }
+  
+  .hud-stat {
+    gap: 6px;
+  }
+  
+  .hud-stat__label {
+    font-size: 8px;
+  }
+  
+  .hud-stat__val {
+    font-size: 14px;
+  }
+  
+  .hud-hp-bar {
+    width: 80px;
+    height: 5px;
+  }
+  
+  .hud-timer {
+    font-size: 22px;
+    letter-spacing: 2px;
+  }
+  
+  .hud-blood-hunt {
+    top: 52px;
+    font-size: 9px;
+    padding: 6px 16px;
+    gap: 8px;
+  }
+  
+  .blood-hunt__icon {
+    font-size: 12px;
+  }
+  
+  .hud-leaderboard {
+    top: 60px;
+    right: 8px;
+    padding: 8px;
+    min-width: 150px;
+  }
+  
+  .hud-lb__title {
+    font-size: 8px;
+    margin-bottom: 6px;
+  }
+  
+  .hud-lb__row {
+    font-size: 10px;
+    gap: 6px;
+  }
+  
+  .hud-lb__rank {
+    font-size: 9px;
+  }
+  
+  .hud-lb__val {
+    font-size: 11px;
+  }
+  
+  .hud-wallet {
+    bottom: 180px;
+    left: 8px;
+    font-size: 9px;
+    padding: 5px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hud-top {
+    padding: 6px 8px;
+  }
+  
+  .hud-stat {
+    gap: 4px;
+  }
+  
+  .hud-stat__label {
+    font-size: 7px;
+    letter-spacing: 1px;
+  }
+  
+  .hud-stat__val {
+    font-size: 12px;
+  }
+  
+  .hud-hp-bar {
+    width: 60px;
+    height: 4px;
+  }
+  
+  .hud-timer {
+    font-size: 18px;
+    letter-spacing: 1px;
+  }
+  
+  .hud-blood-hunt {
+    font-size: 8px;
+    padding: 5px 12px;
+    gap: 6px;
+  }
+  
+  .hud-leaderboard {
+    min-width: 130px;
+    padding: 6px;
+  }
+  
+  .hud-lb__title {
+    font-size: 7px;
+  }
+  
+  .hud-lb__row {
+    font-size: 9px;
+    padding: 3px 0;
+  }
+  
+  .hud-lb__rank {
+    font-size: 8px;
+    width: 18px;
+  }
+  
+  .hud-lb__val {
+    font-size: 10px;
+  }
+  
+  .hud-wallet {
+    bottom: 160px;
+    font-size: 8px;
+    padding: 4px 8px;
+  }
+}

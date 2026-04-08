@@ -85,6 +85,7 @@ fog-of-war/
 
 ## 🎮 How to Play
 
+### Desktop
 1. **Connect Wallet**
    - Install [Phantom](https://phantom.app)
    - Switch to Solana Devnet
@@ -107,6 +108,13 @@ fog-of-war/
    - 90% of pool sent to winner's wallet
    - 10% goes to house
 
+### 📱 Mobile
+- **Movement**: Drag the virtual joystick to move
+- **Combat**: Auto-combat when adjacent to enemies
+- **Treasure**: Walk over gold items to collect
+- **Works on**: iOS Safari, Chrome Mobile, Firefox Mobile
+- See [MOBILE_SUPPORT.md](./MOBILE_SUPPORT.md) for details
+
 ---
 
 ## 🎨 Features
@@ -122,15 +130,17 @@ fog-of-war/
 - Leaderboard (top 5 players)
 - Victory/defeat screens
 - On-chain prize pool (Devnet)
+- **📱 Full mobile support with touch controls**
+- **📱 Responsive design for all screen sizes**
 
 ### 🚧 Planned (Post-MVP)
 - Weapon shop
 - Cross-chain support
-- Mobile responsive
 - Sound effects
 - Minimap
 - Chat system
 - Spectator mode
+- Mobile attack button
 
 ---
 

@@ -108,3 +108,93 @@
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* ── Mobile Joystick ────────────────────────────────────────── */
+.mobile-joystick {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.joystick-base {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(10, 10, 20, 0.6);
+  border: 2px solid rgba(255, 107, 0, 0.5);
+  box-shadow: 
+    0 0 20px rgba(255, 107, 0, 0.3),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.joystick-stick {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 15px rgba(255, 107, 0, 0.6);
+  transition: transform 0.1s ease-out;
+  pointer-events: none;
+}
+
+.mobile-hint {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ── Mobile Responsive ───────────────────────────────────────── */
+@media (max-width: 768px) {
+  .game__canvas-wrap {
+    margin-top: 60px;
+    border-width: 1px;
+  }
+  
+  .game__controls-hint {
+    display: none;
+  }
+  
+  .spawn-prompt__box {
+    padding: 24px 32px;
+    max-width: 90vw;
+  }
+  
+  .spawn-prompt__title {
+    font-size: 18px;
+  }
+  
+  .spawn-prompt__sub {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .game__canvas-wrap {
+    margin-top: 70px;
+  }
+  
+  .joystick-base {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .joystick-stick {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .mobile-joystick {
+    bottom: 30px;
+  }
+}

@@ -188,3 +188,120 @@
 }
 
 .results__stat-val--gold { color: gold; }
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .results__content {
+    gap: 20px;
+    padding: 0 16px;
+  }
+  
+  .results__crown {
+    font-size: 52px;
+  }
+  
+  .results__eyebrow {
+    font-size: 10px;
+    letter-spacing: 4px;
+    padding: 5px 16px;
+  }
+  
+  .results__title {
+    font-size: clamp(24px, 6vw, 44px);
+  }
+  
+  .results__winner-card {
+    padding: 24px 36px;
+    min-width: 90vw;
+  }
+  
+  .results__winner-addr {
+    font-size: 14px;
+  }
+  
+  .payout__val {
+    font-size: 40px;
+  }
+  
+  .payout__unit {
+    font-size: 18px;
+  }
+  
+  .results__payout-sub {
+    font-size: 10px;
+  }
+  
+  .results__actions {
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .results__btn {
+    height: 44px;
+    padding: 0 24px;
+    font-size: 11px;
+  }
+  
+  .results__stat-row {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .results__content {
+    gap: 16px;
+  }
+  
+  .results__crown {
+    font-size: 44px;
+  }
+  
+  .results__eyebrow {
+    font-size: 9px;
+    letter-spacing: 3px;
+    padding: 4px 12px;
+  }
+  
+  .results__title {
+    font-size: clamp(20px, 7vw, 36px);
+  }
+  
+  .results__winner-card {
+    padding: 20px 28px;
+  }
+  
+  .results__winner-label {
+    font-size: 8px;
+  }
+  
+  .results__winner-addr {
+    font-size: 12px;
+  }
+  
+  .payout__val {
+    font-size: 36px;
+  }
+  
+  .payout__unit {
+    font-size: 16px;
+  }
+  
+  .results__btn {
+    height: 40px;
+    padding: 0 20px;
+    font-size: 10px;
+  }
+  
+  .results__stat-label {
+    font-size: 8px;
+  }
+  
+  .results__stat-val {
+    font-size: 12px;
+  }
+  
+  .results__tx {
+    font-size: 10px;
+  }
+}
